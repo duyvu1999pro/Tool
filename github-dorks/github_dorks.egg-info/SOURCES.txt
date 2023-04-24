@@ -1,0 +1,10 @@
+README.md
+github-dork.py
+github-dorks.txt
+setup.cfg
+setup.py
+github_dorks.egg-info/PKG-INFO
+github_dorks.egg-info/SOURCES.txt
+github_dorks.egg-info/dependency_links.txt
+github_dorks.egg-info/requires.txt
+github_dorks.egg-info/top_level.txt

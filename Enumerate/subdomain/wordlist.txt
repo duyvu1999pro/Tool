@@ -1,0 +1,12 @@
+/root/Desktop/wordlist-plus/DNS/bitquark-subdomains-top100000.txt
+/root/Desktop/wordlist-plus/DNS/deepmagic.com-prefixes-top50000.txt
+/root/Desktop/wordlist-plus/DNS/deepmagic.com-prefixes-top500.txt
+/root/Desktop/wordlist-plus/DNS/dns-Jhaddix.txt
+/root/Desktop/wordlist-plus/DNS/fierce-hostlist.txt
+/root/Desktop/wordlist-plus/DNS/namelist.txt
+/root/Desktop/wordlist-plus/DNS/shubs-stackoverflow.txt
+/root/Desktop/wordlist-plus/DNS/shubs-subdomains.txt
+/root/Desktop/wordlist-plus/DNS/sortedcombined-knock-dnsrecon-fierce-reconng.txt
+/root/Desktop/wordlist-plus/DNS/subdomains-top1million-110000.txt
+/root/Desktop/wordlist-plus/DNS/subdomains-top1million-20000.txt
+/root/Desktop/wordlist-plus/DNS/subdomains-top1million-5000.txt

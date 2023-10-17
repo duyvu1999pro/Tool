@@ -16,38 +16,27 @@
 #
 #  Author: Mauro Soria
 
-
-# Remove parameters and fragment from the URL
-def clean_path(path):
-    return path.split("?")[0].split("#")[0]
+from lib.utils.common import lstrip_once
 
 
-def parse_full_path(url):
-    if url.startswith("/") and not url.startswith("//"):
-        return url
-    elif "//" not in url:
-        return "/" + url
+def clean_path(path, keep_queries=False, keep_fragment=False):
+    if not keep_fragment:
+        path = path.split("#")[0]
+    if not keep_queries:
+        path = path.split("?")[0]
 
-    return "/".join(url.split("/")[3:])
-
-
-def parse_path(url):
-    return clean_path(parse_full_path(url))
+    return path
 
 
-def join_path(*components):
-    result = ""
+def parse_path(value):
+    try:
+        scheme, url = value.split("//", 1)
+        if (
+            scheme and (not scheme.endswith(":") or "/" in scheme)
+            or url.startswith("/")
+        ):
+            raise ValueError
 
-    for component in [*components]:
-        if not component:
-            continue
-
-        if result:
-            if result.endswith("/"):
-                result = result[:-1]
-            if not component.startswith("/"):
-                result += "/"
-
-        result += component
-
-    return result
+        return "/".join(url.split("/")[1:])
+    except Exception:
+        return lstrip_once(value, "/")

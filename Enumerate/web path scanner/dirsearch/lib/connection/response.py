@@ -20,14 +20,15 @@ from lib.core.settings import (
     DEFAULT_ENCODING, ITER_CHUNK_SIZE,
     MAX_RESPONSE_SIZE, UNKNOWN,
 )
-from lib.parse.url import parse_path, parse_full_path
+from lib.parse.url import clean_path, parse_path
 from lib.utils.common import is_binary
 
 
 class Response:
     def __init__(self, response):
-        self.path = parse_path(response.url)
-        self.full_path = parse_full_path(response.url)
+        self.url = response.url
+        self.full_path = parse_path(response.url)
+        self.path = clean_path(self.full_path)
         self.status = response.status_code
         self.headers = response.headers
         self.redirect = self.headers.get("location") or ""
@@ -50,7 +51,10 @@ class Response:
 
     @property
     def type(self):
-        return self.headers.get("content-type") or UNKNOWN
+        if "content-type" in self.headers:
+            return self.headers.get("content-type").split(";")[0]
+
+        return UNKNOWN
 
     @property
     def length(self):

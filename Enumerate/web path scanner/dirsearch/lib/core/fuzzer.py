@@ -16,234 +16,245 @@
 #
 #  Author: Mauro Soria
 
+import re
 import threading
 import time
 
-from lib.core.decorators import cached
+from lib.core.data import blacklists, options
 from lib.core.exceptions import RequestException
+from lib.core.logger import logger
 from lib.core.scanner import Scanner
 from lib.core.settings import (
-    DEFAULT_SCAN_PREFIXES, DEFAULT_SCAN_SUFFIXES,
-    RATE_UPDATE_DELAY,
+    DEFAULT_TEST_PREFIXES,
+    DEFAULT_TEST_SUFFIXES,
+    WILDCARD_TEST_POINT_MARKER,
 )
 from lib.parse.url import clean_path
+from lib.utils.common import human_size, lstrip_once
+from lib.utils.crawl import Crawler
 
 
 class Fuzzer:
     def __init__(self, requester, dictionary, **kwargs):
         self._threads = []
+        self._scanned = set()
         self._requester = requester
         self._dictionary = dictionary
-        self._is_running = False
         self._play_event = threading.Event()
-        self._paused_semaphore = threading.Semaphore(0)
-        self.suffixes = kwargs.get("suffixes", [])
-        self.prefixes = kwargs.get("prefixes", [])
-        self.exclude_response = kwargs.get("exclude_response", None)
-        self.threads_count = kwargs.get("threads", 15)
-        self.delay = kwargs.get("delay", 0)
-        self.maxrate = kwargs.get("maxrate", 0)
-        self.calibration = None
-        self.default_scanner = None
+        self._quit_event = threading.Event()
+        self._pause_semaphore = threading.Semaphore(0)
+        self._base_path = None
+        self.exc = None
         self.match_callbacks = kwargs.get("match_callbacks", [])
         self.not_found_callbacks = kwargs.get("not_found_callbacks", [])
         self.error_callbacks = kwargs.get("error_callbacks", [])
+
+    def setup_scanners(self):
         self.scanners = {
+            "default": {},
             "prefixes": {},
             "suffixes": {},
         }
-        self.exc = None
-
-        if len(self._dictionary) < self.threads_count:
-            self.threads_count = len(self._dictionary)
-
-    def wait(self, timeout=None):
-        if self.exc:
-            raise self.exc
-
-        for thread in self._threads:
-            thread.join(timeout)
-
-            if thread.is_alive():
-                return False
-
-        return True
-
-    def setup_scanners(self):
-        if len(self.scanners):
-            self.scanners = {
-                "prefixes": {},
-                "suffixes": {},
-            }
 
         # Default scanners (wildcard testers)
-        self.default_scanner = Scanner(self._requester)
+        self.scanners["default"].update({
+            "index": Scanner(self._requester, path=self._base_path),
+            "random": Scanner(self._requester, path=self._base_path + WILDCARD_TEST_POINT_MARKER),
+        })
 
-        for prefix in self.prefixes.union(DEFAULT_SCAN_PREFIXES):
+        if options["exclude_response"]:
+            self.scanners["default"]["custom"] = Scanner(
+                self._requester, tested=self.scanners, path=options["exclude_response"]
+            )
+
+        for prefix in options["prefixes"] + DEFAULT_TEST_PREFIXES:
             self.scanners["prefixes"][prefix] = Scanner(
-                self._requester, prefix=prefix, tested=self.scanners
+                self._requester, tested=self.scanners,
+                path=f"{self._base_path}{prefix}{WILDCARD_TEST_POINT_MARKER}",
+                context=f"/{self._base_path}{prefix}***",
             )
 
-        for suffix in self.suffixes.union(DEFAULT_SCAN_SUFFIXES):
+        for suffix in options["suffixes"] + DEFAULT_TEST_SUFFIXES:
             self.scanners["suffixes"][suffix] = Scanner(
-                self._requester, suffix=suffix, tested=self.scanners
+                self._requester, tested=self.scanners,
+                path=f"{self._base_path}{WILDCARD_TEST_POINT_MARKER}{suffix}",
+                context=f"/{self._base_path}***{suffix}",
             )
 
-        for extension in self._dictionary.extensions:
+        for extension in options["extensions"]:
             if "." + extension not in self.scanners["suffixes"]:
                 self.scanners["suffixes"]["." + extension] = Scanner(
-                    self._requester, suffix="." + extension, tested=self.scanners
+                    self._requester, tested=self.scanners,
+                    path=f"{self._base_path}{WILDCARD_TEST_POINT_MARKER}.{extension}",
+                    context=f"/{self._base_path}***.{extension}",
                 )
-
-        if self.exclude_response:
-            self.calibration = Scanner(
-                self._requester, custom=self.exclude_response, tested=self.scanners
-            )
 
     def setup_threads(self):
         if self._threads:
             self._threads = []
 
-        for _ in range(self.threads_count):
+        for _ in range(options["thread_count"]):
             new_thread = threading.Thread(target=self.thread_proc)
             new_thread.daemon = True
             self._threads.append(new_thread)
 
-    def get_scanner_for(self, path):
+    def get_scanners_for(self, path):
         # Clean the path, so can check for extensions/suffixes
         path = clean_path(path)
 
-        if self.exclude_response:
-            yield self.calibration
-
-        for prefix in self.prefixes:
+        for prefix in self.scanners["prefixes"]:
             if path.startswith(prefix):
                 yield self.scanners["prefixes"][prefix]
 
-        for suffix in self.suffixes:
+        for suffix in self.scanners["suffixes"]:
             if path.endswith(suffix):
                 yield self.scanners["suffixes"][suffix]
 
-        for extension in self._dictionary.extensions:
-            if path.endswith("." + extension):
-                yield self.scanners["suffixes"]["." + extension]
-
-        yield self.default_scanner
+        for scanner in self.scanners["default"].values():
+            yield scanner
 
     def start(self):
         self.setup_scanners()
         self.setup_threads()
-
-        self._running_threads_count = len(self._threads)
-        self._is_running = True
-        self._rate = 0
-        self._play_event.clear()
+        self.play()
 
         for thread in self._threads:
             thread.start()
 
-        self.play()
+    def is_finished(self):
+        if self.exc:
+            raise self.exc
+
+        for thread in self._threads:
+            if thread.is_alive():
+                return False
+
+        return True
 
     def play(self):
         self._play_event.set()
 
     def pause(self):
         self._play_event.clear()
+        # Wait for all threads to stop
         for thread in self._threads:
             if thread.is_alive():
-                self._paused_semaphore.acquire()
+                self._pause_semaphore.acquire()
 
-        self._is_running = False
-
-    def resume(self):
-        self._is_running = True
-        self._paused_semaphore.release()
+    def quit(self):
+        self._quit_event.set()
         self.play()
 
-    def stop(self):
-        self._is_running = False
-        self.play()
+    def scan(self, path, scanners):
+        # Avoid scanned paths from being re-scanned
+        if path in self._scanned:
+            return
+        else:
+            self._scanned.add(path)
 
-    def scan(self, path):
-        wildcard = False
         response = self._requester.request(path)
 
-        for tester in list(set(self.get_scanner_for(path))):
-            if not tester.scan(path, response):
-                wildcard = True
-                break
+        if self.is_excluded(response):
+            for callback in self.not_found_callbacks:
+                callback(response)
+            return
 
-        return wildcard, response
+        for tester in scanners:
+            # Check if the response is unique, not wildcard
+            if not tester.check(path, response):
+                for callback in self.not_found_callbacks:
+                    callback(response)
+                return
 
-    def is_stopped(self):
-        return self._running_threads_count == 0
+        try:
+            for callback in self.match_callbacks:
+                callback(response)
+        except Exception as e:
+            self.exc = e
 
-    def is_rate_exceeded(self):
-        return self._rate >= self.maxrate > 0
+        if options["crawl"]:
+            logger.info(f'THREAD-{threading.get_ident()}: crawling "/{path}"')
+            for path_ in Crawler.crawl(response):
+                if self._dictionary.is_valid(path_):
+                    logger.info(f'THREAD-{threading.get_ident()}: found new path "/{path_}" in /{path}')
+                    self.scan(path_, self.get_scanners_for(path_))
 
-    def decrease_threads(self):
-        self._running_threads_count -= 1
+    def is_excluded(self, resp):
+        """Validate the response by different filters"""
 
-    def increase_threads(self):
-        self._running_threads_count += 1
+        if resp.status in options["exclude_status_codes"]:
+            return True
 
-    def decrease_rate(self):
-        self._rate -= 1
+        if (
+            options["include_status_codes"]
+            and resp.status not in options["include_status_codes"]
+        ):
+            return True
 
-    def increase_rate(self):
-        self._rate += 1
-        threading.Timer(1, self.decrease_rate).start()
+        if (
+            resp.status in blacklists
+            and any(
+                resp.path.endswith(lstrip_once(suffix, "/"))
+                for suffix in blacklists.get(resp.status)
+            )
+        ):
+            return True
+
+        if human_size(resp.length).rstrip() in options["exclude_sizes"]:
+            return True
+
+        if resp.length < options["minimum_response_size"]:
+            return True
+
+        if resp.length > options["maximum_response_size"] > 0:
+            return True
+
+        if any(text in resp.content for text in options["exclude_texts"]):
+            return True
+
+        if options["exclude_regex"] and re.search(options["exclude_regex"], resp.content):
+            return True
+
+        if (
+            options["exclude_redirect"]
+            and (
+                options["exclude_redirect"] in resp.redirect
+                or re.search(options["exclude_redirect"], resp.redirect)
+            )
+        ):
+            return True
+
+        return False
 
     def set_base_path(self, path):
-        self._requester.base_path = path
+        self._base_path = path
 
     def thread_proc(self):
-        self._play_event.wait()
+        logger.info(f'THREAD-{threading.get_ident()} started"')
 
         while True:
             try:
                 path = next(self._dictionary)
-
-                # Pause if the request rate exceeded the maximum
-                while self.is_rate_exceeded():
-                    time.sleep(0.1)
-
-                self.increase_rate()
-
-                wildcard, response = self.scan(path)
-
-                try:
-                    if not wildcard:
-                        for callback in self.match_callbacks:
-                            callback(path, response)
-                    else:
-                        for callback in self.not_found_callbacks:
-                            callback(path, response)
-                except Exception as e:
-                    self.exc = e
+                scanners = self.get_scanners_for(path)
+                self.scan(self._base_path + path, scanners)
 
             except StopIteration:
-                self._is_running = False
+                break
 
             except RequestException as e:
                 for callback in self.error_callbacks:
-                    callback(path, e.args[1])
+                    callback(e)
 
                 continue
 
             finally:
+                time.sleep(options["delay"])
+
                 if not self._play_event.is_set():
-                    self.decrease_threads()
-                    self._paused_semaphore.release()
+                    logger.info(f'THREAD-{threading.get_ident()} paused"')
+                    self._pause_semaphore.release()
                     self._play_event.wait()
-                    self.increase_threads()
+                    logger.info(f'THREAD-{threading.get_ident()} continued"')
 
-                if not self._is_running:
+                if self._quit_event.is_set():
                     break
-
-                time.sleep(self.delay)
-
-    @property
-    @cached(RATE_UPDATE_DELAY)
-    def rate(self):
-        return self._rate

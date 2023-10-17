@@ -1,0 +1,10 @@
+Administrator
+Guest
+offsec
+krbtgt
+leon
+joe
+peach
+mario
+wario
+yoshi

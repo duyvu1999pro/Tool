@@ -18,13 +18,19 @@
 
 from optparse import OptionParser, OptionGroup
 
-from lib.core.settings import VERSION, SCRIPT_PATH, AUTHENTICATION_TYPES
-from lib.utils.file import FileUtils
+
+from lib.core.settings import (
+    AUTHENTICATION_TYPES,
+    OUTPUT_FORMATS,
+    VERSION,
+)
+from lib.utils.common import get_config_file
 
 
 def parse_arguments():
     usage = "Usage: %prog [-u|--url] target [-e|--extensions] extensions [options]"
-    parser = OptionParser(usage, version=f"dirsearch v{VERSION}")
+    epilog = "See 'config.ini' for the example configuration file"
+    parser = OptionParser(usage=usage, epilog=epilog, version=f"dirsearch v{VERSION}")
 
     # Mandatory arguments
     mandatory = OptionGroup(parser, "Mandatory")
@@ -34,13 +40,13 @@ def parse_arguments():
         action="append",
         dest="urls",
         metavar="URL",
-        help="Target URL(s), support multiple flags",
+        help="Target URL(s), can use multiple flags",
     )
     mandatory.add_option(
         "-l",
-        "--url-file",
+        "--urls-file",
         action="store",
-        dest="url_file",
+        dest="urls_file",
         metavar="PATH",
         help="URL list file",
     )
@@ -53,7 +59,7 @@ def parse_arguments():
         action="store",
         dest="raw_file",
         metavar="PATH",
-        help="Load raw HTTP request from file (use `--scheme` flag to set the scheme)",
+        help="Load raw HTTP request from file (use '--scheme' flag to set the scheme)",
     )
     mandatory.add_option(
         "-s", "--session", action="store", dest="session_file", help="Session file"
@@ -62,9 +68,9 @@ def parse_arguments():
         "--config",
         action="store",
         dest="config",
-        default=FileUtils.build_path(SCRIPT_PATH, "default.conf"),
         metavar="PATH",
-        help="Full path to config file, see 'default.conf' for example (Default: default.conf)",
+        help="Path to configuration file (Default: 'DIRSEARCH_CONFIG' environment variable, otherwise 'config.ini')",
+        default=get_config_file(),
     )
 
     # Dictionary Settings
@@ -74,7 +80,7 @@ def parse_arguments():
         "--wordlists",
         action="store",
         dest="wordlists",
-        help="Customize wordlists (separated by commas)",
+        help="Wordlist files or directories contain wordlists (separated by commas)",
     )
     dictionary.add_option(
         "-e",
@@ -107,7 +113,7 @@ def parse_arguments():
     dictionary.add_option(
         "--remove-extensions",
         action="store_true",
-        dest="no_extension",
+        dest="remove_extensions",
         help="Remove extensions in all paths (e.g. admin.php -> admin)",
     )
     dictionary.add_option(
@@ -151,7 +157,7 @@ def parse_arguments():
         "--threads",
         action="store",
         type="int",
-        dest="threads_count",
+        dest="thread_count",
         metavar="THREADS",
         help="Number of threads",
     )
@@ -193,7 +199,7 @@ def parse_arguments():
     general.add_option(
         "--subdirs",
         action="store",
-        dest="scan_subdirs",
+        dest="subdirs",
         metavar="SUBDIRS",
         help="Scan sub-directories of the given URL[s] (separated by commas)",
     )
@@ -228,18 +234,18 @@ def parse_arguments():
         help="Exclude responses by sizes, separated by commas (e.g. 0B,4KB)",
     )
     general.add_option(
-        "--exclude-texts",
-        action="store",
+        "--exclude-text",
+        action="append",
         dest="exclude_texts",
         metavar="TEXTS",
-        help="Exclude responses by texts, separated by commas (e.g. 'Not found', 'Error')",
+        help="Exclude responses by text, can use multiple flags",
     )
     general.add_option(
         "--exclude-regex",
         action="store",
         dest="exclude_regex",
         metavar="REGEX",
-        help="Exclude responses by regex (e.g. '^Error$')",
+        help="Exclude responses by regular expression",
     )
     general.add_option(
         "--exclude-redirect",
@@ -284,9 +290,15 @@ def parse_arguments():
         "--max-time",
         action="store",
         type="int",
-        dest="maxtime",
+        dest="max_time",
         metavar="SECONDS",
         help="Maximum runtime for the scan",
+    )
+    general.add_option(
+        "--exit-on-error",
+        action="store_true",
+        dest="exit_on_error",
+        help="Exit whenever an error occurs",
     )
 
     # Request Settings
@@ -295,7 +307,7 @@ def parse_arguments():
         "-m",
         "--http-method",
         action="store",
-        dest="httpmethod",
+        dest="http_method",
         metavar="METHOD",
         help="HTTP method (default: GET)",
     )
@@ -314,11 +326,11 @@ def parse_arguments():
         "--header",
         action="append",
         dest="headers",
-        help="HTTP request header, support multiple flags",
+        help="HTTP request header, can use multiple flags",
     )
     request.add_option(
-        "--header-file",
-        dest="header_file",
+        "--headers-file",
+        dest="headers_file",
         metavar="PATH",
         help="File contains HTTP request headers",
     )
@@ -332,7 +344,7 @@ def parse_arguments():
     request.add_option(
         "--random-agent",
         action="store_true",
-        dest="use_random_agents",
+        dest="random_agents",
         help="Choose a random User-Agent for each request",
     )
     request.add_option(
@@ -363,7 +375,7 @@ def parse_arguments():
         metavar="PATH",
         help="File contains client-side certificate private key (unencrypted)",
     )
-    request.add_option("--user-agent", action="store", dest="useragent")
+    request.add_option("--user-agent", action="store", dest="user_agent")
     request.add_option("--cookie", action="store", dest="cookie")
 
     # Connection Settings
@@ -383,16 +395,17 @@ def parse_arguments():
         help="Delay between requests",
     )
     connection.add_option(
+        "-p",
         "--proxy",
         action="append",
-        dest="proxy",
+        dest="proxies",
         metavar="PROXY",
-        help="Proxy URL, support HTTP and SOCKS proxies (e.g. localhost:8080, socks5://localhost:8088)",
+        help="Proxy URL (HTTP/SOCKS), can use multiple flags",
     )
     connection.add_option(
-        "--proxy-file",
+        "--proxies-file",
         action="store",
-        dest="proxy_file",
+        dest="proxies_file",
         metavar="PATH",
         help="File contains proxy servers",
     )
@@ -424,7 +437,7 @@ def parse_arguments():
         "--max-rate",
         action="store",
         type="int",
-        dest="maxrate",
+        dest="max_rate",
         metavar="RATE",
         help="Max requests per second",
     )
@@ -437,11 +450,14 @@ def parse_arguments():
         help="Number of retries for failed requests",
     )
     connection.add_option("--ip", action="store", dest="ip", help="Server IP address")
-    connection.add_option(
-        "--exit-on-error",
+
+    # Advanced Settings
+    advanced = OptionGroup(parser, "Advanced Settings")
+    advanced.add_option(
+        "--crawl",
         action="store_true",
-        dest="exit_on_error",
-        help="Exit whenever an error occurs",
+        dest="crawl",
+        help="Crawl for new paths in responses"
     )
 
     # View Settings
@@ -471,16 +487,16 @@ def parse_arguments():
         "-o",
         "--output",
         action="store",
-        dest="output_file",
-        metavar="PATH",
-        help="Output file",
+        dest="output",
+        metavar="PATH/URL",
+        help="Output file or MySQL/PostgreSQL URL (Format: scheme://[username:password@]host[:port]/database-name)",
     )
     output.add_option(
         "--format",
         action="store",
         dest="output_format",
         metavar="FORMAT",
-        help="Report format (Available: simple, plain, json, xml, md, csv, html, sqlite)",
+        help=f"Report format (Available: {','.join(OUTPUT_FORMATS)})",
     )
     output.add_option(
         "--log", action="store", dest="log_file", metavar="PATH", help="Log file"
@@ -491,6 +507,7 @@ def parse_arguments():
     parser.add_option_group(general)
     parser.add_option_group(request)
     parser.add_option_group(connection)
+    parser.add_option_group(advanced)
     parser.add_option_group(view)
     parser.add_option_group(output)
     options, _ = parser.parse_args()

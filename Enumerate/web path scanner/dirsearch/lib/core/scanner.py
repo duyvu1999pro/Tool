@@ -20,7 +20,12 @@ import re
 
 from urllib.parse import unquote
 
-from lib.core.settings import REFLECTED_PATH_MARKER, TEST_PATH_LENGTH
+from lib.core.logger import logger
+from lib.core.settings import (
+    REFLECTED_PATH_MARKER,
+    TEST_PATH_LENGTH,
+    WILDCARD_TEST_POINT_MARKER,
+)
 from lib.parse.url import clean_path
 from lib.utils.diff import generate_matching_regex, DynamicContentParser
 from lib.utils.random import rand_string
@@ -28,12 +33,10 @@ from lib.utils.random import rand_string
 
 class Scanner:
     def __init__(self, requester, **kwargs):
-        self.custom = kwargs.get("custom", None)
-        self.suffix = kwargs.get("suffix", "")
-        self.prefix = kwargs.get("prefix", "")
+        self.path = kwargs.get("path", "")
         self.tested = kwargs.get("tested", [])
+        self.context = kwargs.get("context", "all cases")
         self.requester = requester
-        self.tester = None
         self.response = None
         self.wildcard_redirect_regex = None
         self.setup()
@@ -44,10 +47,9 @@ class Scanner:
         used to compare with other path responses
         """
 
-        first_path = (
-            self.prefix
-            + (self.custom or rand_string(TEST_PATH_LENGTH))
-            + self.suffix
+        first_path = self.path.replace(
+            WILDCARD_TEST_POINT_MARKER,
+            rand_string(TEST_PATH_LENGTH),
         )
         first_response = self.requester.request(first_path)
         self.response = first_response
@@ -57,22 +59,23 @@ class Scanner:
         if duplicate:
             self.content_parser = duplicate.content_parser
             self.wildcard_redirect_regex = duplicate.wildcard_redirect_regex
+            logger.debug(f'Skipped the second test for "{self.context}"')
             return
 
-        second_path = (
-            self.prefix
-            + (self.custom or rand_string(TEST_PATH_LENGTH, omit=first_path))
-            + self.suffix
+        second_path = self.path.replace(
+            WILDCARD_TEST_POINT_MARKER,
+            rand_string(TEST_PATH_LENGTH, omit=first_path),
         )
         second_response = self.requester.request(second_path)
 
         if first_response.redirect and second_response.redirect:
             self.wildcard_redirect_regex = self.generate_redirect_regex(
-                first_response.redirect,
+                clean_path(first_response.redirect),
                 first_path,
-                second_response.redirect,
+                clean_path(second_response.redirect),
                 second_path,
             )
+            logger.debug(f'Pattern (regex) to detect wildcard redirects for "{self.context}": {self.wildcard_redirect_regex}')
 
         self.content_parser = DynamicContentParser(
             first_response.content, second_response.content
@@ -95,7 +98,7 @@ class Scanner:
 
         return self.content_parser.compare_to(response.content)
 
-    def scan(self, path, response):
+    def check(self, path, response):
         """
         Perform analyzing to see if the response is wildcard or not
         """
@@ -118,6 +121,7 @@ class Scanner:
 
             # If redirection doesn't match the rule, mark as found
             if not is_wildcard_redirect:
+                logger.debug(f'"{redirect}" doesn\'t match the regular expression "{regex_to_compare}", passing')
                 return True
 
         if self.is_wildcard(response):
@@ -140,6 +144,9 @@ class Scanner:
            (e.g. /path3 -> /foo/path3?a=5, the regex becomes ^/foo/path3?a=(.*)$, which matches)
         """
 
-        first_loc = unquote(first_loc).replace(first_path, REFLECTED_PATH_MARKER)
-        second_loc = unquote(second_loc).replace(second_path, REFLECTED_PATH_MARKER)
+        if first_path:
+            first_loc = unquote(first_loc).replace(first_path, REFLECTED_PATH_MARKER)
+        if second_path:
+            second_loc = unquote(second_loc).replace(second_path, REFLECTED_PATH_MARKER)
+
         return generate_matching_regex(first_loc, second_loc)

@@ -16,24 +16,48 @@
 #
 #  Author: Mauro Soria
 
+import os
+import sys
+
 from ipaddress import IPv4Network, IPv6Network
-from urllib.parse import quote
+from urllib.parse import quote, urljoin
 
 from lib.core.settings import (
-    INVALID_CHARS_FOR_WINDOWS_FILENAME, INSECURE_CSV_CHARS,
-    INVALID_FILENAME_CHAR_REPLACEMENT, URL_SAFE_CHARS, TEXT_CHARS,
+    INVALID_CHARS_FOR_WINDOWS_FILENAME,
+    INSECURE_CSV_CHARS,
+    INVALID_FILENAME_CHAR_REPLACEMENT,
+    IS_WINDOWS,
+    URL_SAFE_CHARS,
+    SCRIPT_PATH,
+    TEXT_CHARS,
 )
+from lib.utils.file import FileUtils
+
+
+def get_config_file():
+    return os.environ.get("DIRSEARCH_CONFIG") or FileUtils.build_path(SCRIPT_PATH, "config.ini")
 
 
 def safequote(string_):
     return quote(string_, safe=URL_SAFE_CHARS)
 
 
-def uniq(string_list):
-    if not string_list:
-        return string_list
+def uniq(array, type_=list):
+    return type_(filter(None, dict.fromkeys(array)))
 
-    return list(filter(None, dict.fromkeys(string_list)))
+
+def lstrip_once(string, pattern):
+    if string.startswith(pattern):
+        return string[len(pattern):]
+
+    return string
+
+
+def rstrip_once(string, pattern):
+    if string.endswith(pattern):
+        return string[:-len(pattern)]
+
+    return string
 
 
 # Some characters are denied in file name by Windows
@@ -76,3 +100,31 @@ def escape_csv(text):
         text = "'" + text
 
     return text.replace('"', '""')
+
+
+# The browser direction behavior when you click on <a href="bar">link</a>
+# (https://website.com/folder/foo -> https://website.com/folder/bar)
+def merge_path(url, path):
+    parts = url.split("/")
+    # Normalize path like the browser does (dealing with ../ and ./)
+    path = urljoin("/", path).lstrip("/")
+    parts[-1] = path
+
+    return "/".join(parts)
+
+
+# Reference: https://stackoverflow.com/questions/46129898/conflict-between-sys-stdin-and-input-eoferror-eof-when-reading-a-line
+def read_stdin():
+    buffer = sys.stdin.read()
+
+    try:
+        if IS_WINDOWS:
+            tty = "CON:"
+        else:
+            tty = os.ttyname(sys.stdout.fileno())
+
+        sys.stdin = open(tty)
+    except OSError:
+        pass
+
+    return buffer

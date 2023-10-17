@@ -23,7 +23,7 @@ import string
 from lib.utils.file import FileUtils
 
 # Version format: <major version>.<minor version>.<revision>[.<month>]
-VERSION = "0.4.2.4"
+VERSION = "0.4.3"
 
 BANNER = f"""
   _|. _ _  _  _  _ _|_    v{VERSION}
@@ -31,6 +31,8 @@ BANNER = f"""
 """
 
 SCRIPT_PATH = FileUtils.parent(__file__, 3)
+
+OPTIONS_FILE = "options.ini"
 
 IS_WINDOWS = sys.platform in ("win32", "msys")
 
@@ -42,53 +44,73 @@ INVALID_CHARS_FOR_WINDOWS_FILENAME = ('"', "*", "<", ">", "?", "\\", "|", "/", "
 
 INVALID_FILENAME_CHAR_REPLACEMENT = "_"
 
-OUTPUT_FORMATS = ("simple", "plain", "json", "xml", "md", "csv", "html", "sqlite")
+OUTPUT_FORMATS = ("simple", "plain", "json", "xml", "md", "csv", "html", "sqlite", "mysql", "postgresql")
 
-COMMON_EXTENSIONS = ("php", "jsp", "asp", "aspx", "do", "action", "cgi", "html", "htm", "js", "json", "tar.gz", "bak")
+COMMON_EXTENSIONS = ("php", "jsp", "asp", "aspx", "do", "action", "cgi", "html", "htm", "js", "tar.gz")
 
-MEDIA_EXTENSIONS = ("webm", "mkv", "avi", "ts", "mov", "qt", "amv", "mp4", "m4p", "m4v", "mp3", "swf", "mpg", "mpeg", "jpg", "jpeg", "pjpeg", "png", "woff", "svg", "webp", "bmp", "pdf", "wav")
+MEDIA_EXTENSIONS = ("webm", "mkv", "avi", "ts", "mov", "qt", "amv", "mp4", "m4p", "m4v", "mp3", "swf", "mpg", "mpeg", "jpg", "jpeg", "pjpeg", "png", "woff", "svg", "webp", "bmp", "pdf", "wav", "vtt")
 
 EXCLUDE_OVERWRITE_EXTENSIONS = MEDIA_EXTENSIONS + ("axd", "cache", "coffee", "conf", "config", "css", "dll", "lock", "log", "key", "pub", "properties", "ini", "jar", "js", "json", "toml", "txt", "xml", "yaml", "yml")
 
-AUTHENTICATION_TYPES = ("basic", "digest", "bearer", "ntlm", "jwt", "oauth2")
+CRAWL_ATTRIBUTES = ("action", "cite", "data", "formaction", "href", "longdesc", "poster", "src", "srcset", "xmlns")
+
+CRAWL_TAGS = ("a", "area", "base", "blockquote", "button", "embed", "form", "frame", "frameset", "html", "iframe", "input", "ins", "noframes", "object", "q", "script", "source")
+
+AUTHENTICATION_TYPES = ("basic", "digest", "bearer", "ntlm", "jwt")
 
 PROXY_SCHEMES = ("http://", "https://", "socks5://", "socks5h://", "socks4://", "socks4a://")
 
+STANDARD_PORTS = {"http": 80, "https": 443}
+
 INSECURE_CSV_CHARS = ("+", "-", "=", "@")
 
-DEFAULT_SCAN_PREFIXES = (".",)
+DEFAULT_TEST_PREFIXES = (".",)
 
-DEFAULT_SCAN_SUFFIXES = ("/",)
+DEFAULT_TEST_SUFFIXES = ("/",)
 
-DEFAULT_TOR_PROXIES = list(("socks5://127.0.0.1:9050", "socks5://127.0.0.1:9150"))
+DEFAULT_TOR_PROXIES = ("socks5://127.0.0.1:9050", "socks5://127.0.0.1:9150")
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36",
-    "Accept": "*/*",
-    "Accept-Encoding": "*",
-    "Keep-Alive": "timeout=15, max=1000",
-    "Cache-Control": "max-age=0",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36",
+    "accept": "*/*",
+    "accept-encoding": "*",
+    "keep-alive": "timeout=15, max=1000",
+    "cache-control": "max-age=0",
 }
 
 DEFAULT_SESSION_FILE = "session.pickle"
 
 REFLECTED_PATH_MARKER = "__REFLECTED_PATH__"
 
+WILDCARD_TEST_POINT_MARKER = "__WILDCARD_POINT__"
+
 EXTENSION_TAG = "%ext%"
 
-EXTENSION_REGEX = r"([.][a-zA-Z0-9]{2,5}){1,3}~?$"
+EXTENSION_RECOGNITION_REGEX = r"\w+([.][a-zA-Z0-9]{2,5}){1,3}~?$"
 
-EXTENSION_RECOGNITION_REGEX = r"\w" + EXTENSION_REGEX
-
-QUERY_STRING_REGEX = r"^(\&?(\w+)\=([^&]+)){1,200}$"
+QUERY_STRING_REGEX = r"^(\&?([^=& ]+)\=([^=& ]+)?){1,200}$"
 
 READ_RESPONSE_ERROR_REGEX = r"(ChunkedEncodingError|StreamConsumedError|UnrewindableBodyError)"
 
+URI_REGEX = r"^[a-z]{2,}:"
+
+ROBOTS_TXT_REGEX = r"(?:Allow|Disallow): /(.*)"
+
 UNKNOWN = "unknown"
+
+TMP_PATH = "/tmp/dirsearch"
+
+DUMMY_DOMAIN = "example.com"
+
+DUMMY_URL = "https://example.com/"
+
+DUMMY_WORD = "dummyasdf"
 
 SOCKET_TIMEOUT = 6
 
 RATE_UPDATE_DELAY = 0.15
+
+MAX_MATCH_RATIO = 0.98
 
 ITER_CHUNK_SIZE = 1024 * 1024
 
@@ -97,8 +119,6 @@ MAX_RESPONSE_SIZE = 80 * 1024 * 1024
 TEST_PATH_LENGTH = 6
 
 MAX_CONSECUTIVE_REQUEST_ERRORS = 75
-
-PAUSING_WAIT_TIMEOUT = 7
 
 URL_SAFE_CHARS = string.punctuation
 

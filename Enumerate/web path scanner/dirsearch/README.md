@@ -5,17 +5,18 @@ dirsearch - Web path discovery
 
 ![Build](https://img.shields.io/badge/Built%20with-Python-Blue)
 ![License](https://img.shields.io/badge/license-GNU_General_Public_License-_red.svg)
-![Release](https://img.shields.io/github/release/maurosoria/dirsearch.svg)
 ![Stars](https://img.shields.io/github/stars/maurosoria/dirsearch.svg)
-<a href="https://twitter.com/intent/tweet?text=dirsearch%20-%20Web%20path%20scanner%20by%20@_maurosoria%0A%0Ahttps://github.com/maurosoria/dirsearch">
-    ![Tweet](https://img.shields.io/twitter/url?url=https%3A%2F%2Fgithub.com%2Fmaurosoria%2Fdirsearch)
-</a>
+[![Release](https://img.shields.io/github/release/maurosoria/dirsearch.svg)](https://github.com/maurosoria/dirsearch/releases)
+[![Sponsors](https://img.shields.io/github/sponsors/maurosoria)](https://github.com/sponsors/maurosoria)
+[![Discord](https://img.shields.io/discord/992276296669339678.svg?logo=discord)](https://discord.gg/2N22ZdAJRj)
+[![Twitter](https://img.shields.io/twitter/follow/_dirsearch?label=Follow)](https://twitter.com/_dirsearch)
 
-**Current Release: v0.4.2 (2021.9.12)**
 
-An advanced command-line tool designed to brute force directories and files in webservers, AKA web path scanner
+> An advanced web path brute-forcer
 
 **dirsearch** is being actively developed by [@maurosoria](https://twitter.com/_maurosoria) and [@shelld3v](https://twitter.com/shells3c_)
+
+*Reach to our [Discord server](https://discord.gg/2N22ZdAJRj) to communicate with the team at best*
 
 
 Table of Contents
@@ -56,10 +57,10 @@ Installation & Usage
 
 Choose one of these installation options:
 
-- Install with git: `git clone https://github.com/maurosoria/dirsearch.git --depth 1` (RECOMMENDED)
+- Install with **git**: `git clone https://github.com/maurosoria/dirsearch.git --depth 1` (**RECOMMENDED**)
 - Install with ZIP file: [Download here](https://github.com/maurosoria/dirsearch/archive/master.zip)
-- Install with Docker: `docker build -t "dirsearch:v0.4.2" .` (more information can be found [here](https://github.com/maurosoria/dirsearch#support-docker))
-- Install with PyPi: `pip3 install dirsearch`
+- Install with Docker: `docker build -t "dirsearch:v0.4.3" .` (more information can be found [here](https://github.com/maurosoria/dirsearch#support-docker))
+- Install with PyPi: `pip3 install dirsearch` or `pip install dirsearch`
 - Install with Kali Linux: `sudo apt-get install dirsearch` (deprecated)
 
 
@@ -126,20 +127,21 @@ Options:
   -h, --help            show this help message and exit
 
   Mandatory:
-    -u URL, --url=URL   Target URL(s), support multiple flags
+    -u URL, --url=URL   Target URL(s), can use multiple flags
     -l PATH, --url-file=PATH
                         URL list file
     --stdin             Read URL(s) from STDIN
     --cidr=CIDR         Target CIDR
-    --raw=PATH          Load raw HTTP request from file (use `--scheme` flag
+    --raw=PATH          Load raw HTTP request from file (use '--scheme' flag
                         to set the scheme)
     -s SESSION_FILE, --session=SESSION_FILE
                         Session file
-    --config=PATH       Full path to config file, see 'default.conf' for
-                        example (Default: default.conf)
+    --config=PATH       Path to configuration file (Default:
+                        'DIRSEARCH_CONFIG' environment variable, otherwise
+                        'config.ini')
 
   Dictionary Settings:
-    -w WORDLIST, --wordlists=WORDLIST
+    -w WORDLISTS, --wordlists=WORDLISTS
                         Customize wordlists (separated by commas)
     -e EXTENSIONS, --extensions=EXTENSIONS
                         Extension list separated by commas (e.g. php,asp)
@@ -148,8 +150,8 @@ Options:
                         default dirsearch only replaces the %EXT% keyword with
                         extensions
     -O, --overwrite-extensions
-                        Overwrite other extensions with your extensions
-                        (selected via `-e`)
+                        Overwrite other extensions in the wordlist with your
+                        extensions (selected via `-e`)
     --exclude-extensions=EXTENSIONS
                         Exclude extension list separated by commas (e.g.
                         asp,jsp)
@@ -193,11 +195,10 @@ Options:
     --exclude-sizes=SIZES
                         Exclude responses by sizes, separated by commas (e.g.
                         0B,4KB)
-    --exclude-texts=TEXTS
-                        Exclude responses by texts, separated by commas (e.g.
-                        'Not found', 'Error')
+    --exclude-text=TEXTS
+                        Exclude responses by text, can use multiple flags
     --exclude-regex=REGEX
-                        Exclude responses by regex (e.g. '^Error$')
+                        Exclude responses by regular expression
     --exclude-redirect=STRING
                         Exclude responses if this regex (or text) matches
                         redirect URL (e.g. '/index.html')
@@ -212,6 +213,7 @@ Options:
     --max-response-size=LENGTH
                         Maximum response length
     --max-time=SECONDS  Maximum runtime for the scan
+    --exit-on-error     Exit whenever an error occurs
 
   Request Settings:
     -m METHOD, --http-method=METHOD
@@ -220,7 +222,7 @@ Options:
                         HTTP request data
     --data-file=PATH    File contains HTTP request data
     -H HEADERS, --header=HEADERS
-                        HTTP request header, support multiple flags
+                        HTTP request header, can use multiple flags
     --header-file=PATH  File contains HTTP request headers
     -F, --follow-redirects
                         Follow HTTP redirects
@@ -232,14 +234,13 @@ Options:
     --cert-file=PATH    File contains client-side certificate
     --key-file=PATH     File contains client-side certificate private key
                         (unencrypted)
-    --user-agent=USERAGENT
+    --user-agent=USER_AGENT
     --cookie=COOKIE
 
   Connection Settings:
     --timeout=TIMEOUT   Connection timeout
     --delay=DELAY       Delay between requests
-    --proxy=PROXY       Proxy URL, support HTTP and SOCKS proxies (e.g.
-                        localhost:8080, socks5://localhost:8088)
+    --proxy=PROXY       Proxy URL (HTTP/SOCKS), can use multiple flags
     --proxy-file=PATH   File contains proxy servers
     --proxy-auth=CREDENTIAL
                         Proxy authentication credential
@@ -251,9 +252,11 @@ Options:
     --max-rate=RATE     Max requests per second
     --retries=RETRIES   Number of retries for failed requests
     --ip=IP             Server IP address
-    --exit-on-error     Exit whenever an error occurs
 
-  View:
+  Advanced Settings:
+    --crawl             Crawl for new paths in responses
+
+  View Settings:
     --full-url          Full URLs in the output (enabled automatically in
                         quiet mode)
     --redirects-history
@@ -261,7 +264,7 @@ Options:
     --no-color          No colored output
     -q, --quiet-mode    Quiet mode
 
-  Output:
+  Output Settings:
     -o PATH, --output=PATH
                         Output file
     --format=FORMAT     Report format (Available: simple, plain, json, xml,
@@ -273,7 +276,7 @@ Options:
 Configuration
 ---------------
 
-Default values for dirsearch flags can be edited in the configuration file, by default is `default.conf` but you can select another file with the `--config` flag
+By default, `config.ini` inside your dirsearch directory is used as the configuration file but you can select another file via `--config` flag or `DIRSEARCH_CONFIG` environment variable.
 
 ```ini
 # If you want to edit dirsearch default configurations, you can
@@ -290,11 +293,12 @@ max-recursion-depth = 0
 exclude-subdirs = %%ff/,.;/,..;/,;/,./,../,%%2e/,%%2e%%2e/
 random-user-agents = False
 max-time = 0
+exit-on-error = False
 # subdirs = /,api/
 # include-status = 200-299,401
 # exclude-status = 400,500-999
 # exclude-sizes = 0b,123gb
-# exclude-texts = "Not found"
+# exclude-text = "Not found"
 # exclude-regex = "^403$"
 # exclude-redirect = "*/error.html"
 # exclude-response = 404.html
@@ -313,7 +317,7 @@ capitalization = False
 # wordlists = /path/to/wordlist1.txt,/path/to/wordlist2.txt
 
 [request]
-httpmethod = get
+http-method = get
 follow-redirects = False
 # headers-file = /path/to/headers.txt
 # user-agent = MyUserAgent
@@ -324,12 +328,14 @@ timeout = 7.5
 delay = 0
 max-rate = 0
 max-retries = 1
-exit-on-error = False
 ## By disabling `scheme` variable, dirsearch will automatically identify the URI scheme
 # scheme = http
 # proxy = localhost:8080
 # proxy-file = /path/to/proxies.txt
 # replay-proxy = localhost:8000
+
+[advanced]
+crawl = False
 
 [view]
 full-url = False
@@ -341,8 +347,9 @@ show-redirects-history = False
 ## Support: plain, simple, json, xml, md, csv, html, sqlite
 report-format = plain
 autosave-report = True
+autosave-report-folder = reports/
 # log-file = /path/to/dirsearch.log
-# report-output-folder = /path/to/reports
+# log-file-size = 50000000
 ```
 
 
@@ -379,10 +386,10 @@ dirsearch allows you to pause the scanning progress with CTRL+C, from here, you 
 ```
 python3 dirsearch.py -e php,html,js -u https://target -r
 ```
-- You can set the max recursion depth with **--recursion-depth**, and status codes to recurse with **--recursion-status**
+- You can set the max recursion depth with **--max-recursion-depth**, and status codes to recurse with **--recursion-status**
 
 ```
-python3 dirsearch.py -e php,html,js -u https://target -r --recursion-depth 3 --recursion-status 200-399
+python3 dirsearch.py -e php,html,js -u https://target -r --max-recursion-depth 3 --recursion-status 200-399
 ```
 - There are 2 more options: **--force-recursive** and **--deep-recursive**
   - **Force recursive**: Brute force recursively all found paths, not just paths end with `/`
@@ -603,15 +610,15 @@ curl -fsSL https://get.docker.com | bash
 To create image
 
 ```sh
-docker build -t "dirsearch:v0.4.2" .
+docker build -t "dirsearch:v0.4.3" .
 ```
 
-> **dirsearch** is the name of the image and **v0.4.2** is the version
+> **dirsearch** is the name of the image and **v0.4.3** is the version
 
 ### Using dirsearch
 For using
 ```sh
-docker run -it --rm "dirsearch:v0.4.2" -u target -e php,html,js,zip
+docker run -it --rm "dirsearch:v0.4.3" -u target -e php,html,js,zip
 ```
 
 

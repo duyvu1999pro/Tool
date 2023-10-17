@@ -1,1 +1,0 @@
-protocol negotiation failed: NT_STATUS_CONNECTION_RESET
